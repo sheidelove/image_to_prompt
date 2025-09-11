@@ -1,54 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 临时简化的中间件用于调试
+// 安全的中间件实现 - 修复 MIDDLEWARE_INVOCATION_FAILED 错误
 export async function middleware(request: NextRequest) {
   try {
-    console.log('Middleware called for:', request.nextUrl.pathname);
+    const pathname = request.nextUrl.pathname;
     
-    // 跳过静态资源
+    // 跳过所有静态资源和 API 路由
     if (
-      request.nextUrl.pathname.includes('.') ||
-      request.nextUrl.pathname.startsWith('/_next') ||
-      request.nextUrl.pathname.startsWith('/api/') ||
-      request.nextUrl.pathname.startsWith('/trpc/')
+      pathname.includes('.') ||
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/api/') ||
+      pathname.startsWith('/trpc/') ||
+      pathname.startsWith('/favicon.ico') ||
+      pathname.startsWith('/logo.svg') ||
+      pathname.includes('_logs')
     ) {
       return NextResponse.next();
     }
 
-    // 简单的locale重定向逻辑
-    const pathname = request.nextUrl.pathname;
     const supportedLocales = ['en', 'zh', 'ko', 'ja'];
     const defaultLocale = 'zh';
 
-    // 检查是否已经有locale
+    // 检查是否已经有locale路径
     const hasLocale = supportedLocales.some(locale => 
       pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
     );
 
-    if (!hasLocale && pathname !== '/') {
-      // 重定向到默认locale
-      const url = new URL(`/${defaultLocale}${pathname}`, request.url);
-      console.log('Redirecting to:', url.toString());
-      return NextResponse.redirect(url);
+    // 防止重定向循环 - 检查是否已经在重定向
+    const isRedirecting = request.headers.get('x-middleware-redirect');
+    if (isRedirecting) {
+      return NextResponse.next();
     }
 
-    // 如果是根路径，重定向到默认locale
+    // 只对根路径进行重定向
     if (pathname === '/') {
-      const url = new URL(`/${defaultLocale}`, request.url);
-      console.log('Redirecting root to:', url.toString());
-      return NextResponse.redirect(url);
+      const response = NextResponse.redirect(new URL(`/${defaultLocale}`, request.url));
+      response.headers.set('x-middleware-redirect', '1');
+      return response;
     }
 
-    console.log('Proceeding with request:', pathname);
+    // 对没有locale的路径进行重定向（但排除特殊路径）
+    const excludePaths = ['/admin', '/health', '/status'];
+    const shouldExclude = excludePaths.some(path => pathname.startsWith(path));
+    
+    if (!hasLocale && !shouldExclude && pathname.length > 1) {
+      const response = NextResponse.redirect(new URL(`/${defaultLocale}${pathname}`, request.url));
+      response.headers.set('x-middleware-redirect', '1');
+      return response;
+    }
+
     return NextResponse.next();
   } catch (error) {
-    console.error('Middleware error:', error);
+    // 安全的错误处理 - 记录错误但不抛出
+    console.error('❌ Middleware error:', {
+      pathname: request.nextUrl.pathname,
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    });
+    
+    // 发生错误时直接放行请求
     return NextResponse.next();
   }
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    /*
+     * 匹配所有路径除了:
+     * 1. /api routes (API routes)
+     * 2. /_next (Next.js internals)
+     * 3. /_logs (Vercel logs)
+     * 4. /static files (assets with file extensions)
+     */
+    '/((?!api|_next|_logs|.*\\.).+)',
   ],
 };
