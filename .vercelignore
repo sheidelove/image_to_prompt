@@ -1,0 +1,23 @@
+# Vercel 部署忽略文件
+# 确保只部署 Next.js 应用相关文件
+
+# 忽略其他 monorepo 应用
+apps/auth-proxy/
+
+# 忽略开发和构建文件
+node_modules/
+.next/
+.turbo/
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 忽略文档文件
+*.md
+!README.md
+
+# 忽略配置文件
+.git/
+.gitignore
