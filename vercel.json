@@ -1,10 +1,28 @@
 {
-  "github": {
-    "silent": true
-  },
+  "version": 2,
+  "builds": [
+    {
+      "src": "apps/nextjs/package.json",
+      "use": "@vercel/next",
+      "config": {
+        "projectSettings": {
+          "framework": "nextjs"
+        }
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "apps/nextjs/$1"
+    }
+  ],
   "functions": {
-    "apps/nextjs/src/app/api/**": {
+    "apps/nextjs/src/app/api/**/*.ts": {
       "maxDuration": 30
     }
+  },
+  "github": {
+    "silent": true
   }
 }
